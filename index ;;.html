@@ -1,0 +1,1422 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Emergency Medicine & Blood Finder</title>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<style>
+  * { box-sizing: border-box; }
+
+  body {
+    font-family: Arial, sans-serif;
+    background: #EAF6FB;
+    margin: 0;
+    padding: 16px;
+    color: #012A4A;
+  }
+
+  body.login-active {
+    background: linear-gradient(160deg, #012A4A 0%, #013A63 30%, #01497C 55%, #2A6F97 80%, #61A5C2 100%);
+    min-height: 100vh;
+    padding: 0;
+    overflow-x: hidden;
+  }
+
+  h1 { font-size: 20px; margin-bottom: 4px; color: #012A4A; }
+  p.subtitle { color: #4C7A9C; font-size: 13px; margin-top: 0; margin-bottom: 16px; }
+
+  .wave-bg { position: fixed; bottom: 0; left: 0; width: 100%; z-index: 0; opacity: 0.55; pointer-events: none; }
+
+  #loginScreen {
+    position: relative; background: rgba(255,255,255,0.08); backdrop-filter: blur(14px);
+    border: 1px solid rgba(255,255,255,0.18); color: #fff; padding: 32px 26px; border-radius: 20px;
+    max-width: 400px; margin: 60px auto 0; box-shadow: 0 20px 60px rgba(1,42,74,0.45); z-index: 2;
+  }
+
+  .logo-badge-wrap { display: flex; justify-content: center; margin-bottom: 14px; }
+  .logo-badge {
+    width: 84px; height: 84px; border-radius: 50%; background: linear-gradient(135deg, #00B4D8, #0077B6);
+    display: flex; align-items: center; justify-content: center; box-shadow: 0 0 0 0 rgba(72,202,228,0.6);
+    animation: badgePulse 2.4s ease-out infinite; border: 3px solid rgba(255,255,255,0.35);
+  }
+  @keyframes badgePulse {
+    0%   { box-shadow: 0 0 0 0 rgba(72,202,228,0.55); }
+    70%  { box-shadow: 0 0 0 16px rgba(72,202,228,0); }
+    100% { box-shadow: 0 0 0 0 rgba(72,202,228,0); }
+  }
+  .logo-badge svg { width: 46px; height: 46px; }
+  .ekg-line { stroke-dasharray: 120; stroke-dashoffset: 120; animation: drawLine 2.4s ease-in-out infinite; }
+  @keyframes drawLine {
+    0%   { stroke-dashoffset: 120; }
+    50%  { stroke-dashoffset: 0; }
+    100% { stroke-dashoffset: -120; }
+  }
+
+  .logo-badge-small {
+    width: 40px; height: 40px; border-radius: 50%; background: linear-gradient(135deg, #00B4D8, #0077B6);
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .logo-badge-small svg { width: 22px; height: 22px; }
+
+  #loginScreen h1 {
+    text-align: center; font-size: 20px; background: linear-gradient(90deg, #ffffff, #CDEFFF);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  #loginScreen p.subtitle { text-align: center; color: #BEE9FA !important; }
+  #loginScreen input {
+    width: 100%; padding: 12px 14px; margin-bottom: 10px; border-radius: 10px;
+    border: 1px solid rgba(255,255,255,0.25); background: rgba(255,255,255,0.08);
+    color: #fff; font-size: 14px; outline: none;
+  }
+  #loginScreen input::placeholder { color: #A9D6E5; }
+  #loginScreen input:focus { border-color: #48CAE4; box-shadow: 0 0 0 3px rgba(72,202,228,0.25); }
+  #loginScreen button {
+    width: 100%; padding: 12px; border-radius: 10px; border: none;
+    background: linear-gradient(90deg, #00B4D8, #0077B6); color: #fff; font-weight: bold;
+    cursor: pointer; margin-bottom: 10px; font-size: 14.5px; letter-spacing: 0.3px;
+    transition: transform 0.1s ease, box-shadow 0.2s ease; box-shadow: 0 6px 16px rgba(0,119,182,0.4);
+  }
+  #loginScreen button:active { transform: scale(0.98); }
+  #loginScreen .switch-link { color: #A9D6E5; text-align: center; font-size: 13px; cursor: pointer; text-decoration: underline; }
+  #loginError { color: #FFD1CB; font-size: 12.5px; margin-bottom: 8px; text-align: center; }
+
+  .app-header { display: flex; align-items: center; gap: 12px; margin-bottom: 4px; }
+
+  .navbar { display: flex; gap: 6px; margin-bottom: 16px; }
+  .nav-btn {
+    flex: 1; padding: 10px 2px; border-radius: 10px; border: 1px solid #BEE1EF;
+    background: #fff; color: #4C7A9C; font-weight: bold; cursor: pointer; font-size: 12px; transition: all 0.15s ease;
+  }
+  .nav-btn.active { background: linear-gradient(90deg, #01497C, #012A4A); color: #fff; border-color: #012A4A; }
+
+  .screen { display: none; }
+  .screen.active { display: block; }
+
+  .modal-overlay {
+    display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(1,42,74,0.55); z-index: 50; align-items: flex-end; justify-content: center;
+  }
+  .modal-overlay.active { display: flex; }
+  .modal-sheet {
+    background: #fff; width: 100%; max-width: 480px; border-radius: 18px 18px 0 0;
+    padding: 20px; max-height: 85vh; overflow-y: auto;
+  }
+  .modal-sheet h2 { margin-top: 0; font-size: 17px; color: #012A4A; }
+  .modal-close {
+    display: block; margin: 12px auto 0; background: none; border: none;
+    color: #4C7A9C; text-decoration: underline; cursor: pointer; font-size: 13px;
+  }
+
+  #toast {
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%) translateY(20px);
+    background: #012A4A; color: #fff; padding: 12px 18px; border-radius: 10px; font-size: 13.5px;
+    box-shadow: 0 8px 24px rgba(1,42,74,0.35); z-index: 100; opacity: 0; pointer-events: none;
+    transition: opacity 0.25s ease, transform 0.25s ease; max-width: 90%; text-align: center;
+  }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* ---------- Location box ---------- */
+  #locationBox { background: #fff; border: 1px solid #BEE1EF; border-radius: 10px; padding: 12px; margin-bottom: 16px; }
+  #locationText { margin-bottom: 8px; font-size: 13.5px; }
+  #locationAccuracyNote { font-size: 11.5px; color: #4C7A9C; margin-top: 2px; }
+  .location-btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
+  #locateBtn {
+    flex: 1; min-width: 140px; background: linear-gradient(90deg, #00B4D8, #0077B6); color: #fff; border: none;
+    padding: 10px 14px; border-radius: 8px; cursor: pointer; font-weight: bold; box-shadow: 0 4px 10px rgba(0,119,182,0.3);
+  }
+  .loc-toggle-btn {
+    flex: 1; min-width: 140px; background: #fff; border: 1.5px solid #01497C; color: #01497C;
+    padding: 10px 14px; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 13px;
+  }
+  #manualLocationBox { margin-top: 12px; border-top: 1px solid #EAF6FB; padding-top: 12px; }
+  #manualLocationBox select, #manualLocationBox input {
+    width: 100%; padding: 10px; margin-bottom: 8px; border-radius: 8px; border: 1px solid #BEE1EF;
+    font-family: inherit; font-size: 14px; background: #fff; color: #012A4A;
+  }
+  #setLocationBtn {
+    width: 100%; padding: 10px; border-radius: 8px; border: none;
+    background: linear-gradient(90deg, #01497C, #012A4A); color: #fff; font-weight: bold; cursor: pointer;
+  }
+
+  .radius-row { display: flex; align-items: center; gap: 8px; margin: 10px 0 16px; font-size: 13px; color: #4C7A9C; flex-wrap: wrap; }
+  .radius-row select { padding: 7px 10px; border-radius: 8px; border: 1px solid #BEE1EF; color: #012A4A; font-weight: bold; background: #fff; }
+
+  .tabs { display: flex; gap: 6px; margin-bottom: 16px; flex-wrap: wrap; }
+  .tab-btn {
+    flex: 1; min-width: 70px; padding: 10px 4px; border-radius: 10px; border: 1px solid #BEE1EF;
+    background: #fff; color: #4C7A9C; font-weight: bold; cursor: pointer; font-size: 13px;
+  }
+  .tab-btn.active { background: linear-gradient(90deg, #01497C, #0077B6); color: #fff; border-color: #01497C; }
+
+  #map { height: 220px; border-radius: 10px; margin-bottom: 16px; border: 1px solid #BEE1EF; }
+
+  .card {
+    background: #fff; border: 1px solid #D8ECF5; border-radius: 10px; padding: 12px;
+    margin-bottom: 10px; box-shadow: 0 1px 4px rgba(1,73,124,0.05); position: relative;
+  }
+  .card h3 { margin: 0 0 6px; font-size: 15px; color: #012A4A; padding-right: 30px; }
+  .tag {
+    display: inline-block; background: #E4F4FA; color: #01497C; font-size: 11px;
+    padding: 3px 8px; border-radius: 999px; margin-right: 6px; margin-top: 4px; font-weight: 600;
+  }
+  .tag.red { background: #FCEAE8; color: #C43B30; }
+  .tag.green { background: #E1F5EA; color: #1F7A4D; }
+  .tag.yellow { background: #FFF3D6; color: #946200; }
+  .call-btn {
+    margin-top: 10px; background: none; border: 1.5px solid #00B4D8; color: #01497C;
+    padding: 8px 12px; border-radius: 8px; cursor: pointer; font-weight: bold;
+    text-decoration: none; display: inline-block; font-size: 13px;
+  }
+  .del-btn {
+    margin-top: 10px; margin-left: 6px; background: none; border: 1px solid #F3D2CD;
+    color: #C43B30; padding: 8px 12px; border-radius: 8px; cursor: pointer; font-weight: bold;
+  }
+  .fav-star {
+    position: absolute; top: 12px; right: 12px; background: none; border: none;
+    font-size: 20px; cursor: pointer; line-height: 1; color: #BEE1EF;
+  }
+  .fav-star.saved { color: #F4A300; }
+
+  #addContactBox input, #addContactBox select, #addContactBox textarea {
+    width: 100%; padding: 10px; margin-bottom: 8px; border-radius: 8px; border: 1px solid #BEE1EF;
+    font-family: inherit; font-size: 14px; background: #fff; color: #012A4A; resize: vertical;
+  }
+  #addContactBox button {
+    width: 100%; padding: 10px; border-radius: 8px; border: none;
+    background: linear-gradient(90deg, #01497C, #012A4A); color: #fff; font-weight: bold; cursor: pointer;
+  }
+
+  .id-card {
+    background: linear-gradient(135deg, #012A4A, #01497C); color: #fff; border-radius: 14px;
+    padding: 18px; margin-bottom: 18px; box-shadow: 0 8px 24px rgba(1,42,74,0.35);
+  }
+  .id-card .id-label { font-size: 11px; letter-spacing: 1px; text-transform: uppercase; color: #A9D6E5; margin-bottom: 2px; }
+  .id-card .id-blood { font-size: 34px; font-weight: bold; color: #48CAE4; margin: 0 0 10px; }
+  .id-card .id-row { font-size: 13px; margin-bottom: 4px; color: #EAF6FB; }
+  .id-card .id-row b { color: #fff; }
+  #profileForm label { display: block; font-size: 12.5px; font-weight: bold; color: #4C7A9C; margin-bottom: 4px; margin-top: 10px; }
+  #profileForm select, #profileForm textarea {
+    width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #BEE1EF;
+    font-family: inherit; font-size: 14px; resize: vertical;
+  }
+  #profileForm textarea { min-height: 54px; }
+  #profileForm button {
+    width: 100%; margin-top: 14px; padding: 11px; border-radius: 8px; border: none;
+    background: linear-gradient(90deg, #00B4D8, #0077B6); color: #fff; font-weight: bold; cursor: pointer;
+  }
+
+  .loading { color: #4C7A9C; font-size: 13px; text-align: center; padding: 12px; }
+  .logout-link { text-decoration: underline; cursor: pointer; color: #01497C; }
+  .empty-state { color: #4C7A9C; font-size: 13px; text-align: center; padding: 20px 10px; }
+
+  .supplier-badge {
+    display: inline-block; background: #FCEAE8; color: #C43B30; font-size: 11px; font-weight: bold;
+    padding: 2px 7px; border-radius: 999px; margin-left: 6px;
+  }
+
+  .shared-banner {
+    background: #E4F4FA; color: #01497C; font-size: 12px; padding: 8px 10px;
+    border-radius: 8px; margin-bottom: 14px; border: 1px solid #BEE1EF;
+  }
+
+  .stars { color: #F4A300; letter-spacing: 1px; font-size: 14px; }
+  .stars .empty-star { color: #D8ECF5; }
+  .rating-row { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: #4C7A9C; margin-top: 4px; }
+  .review-item { border-bottom: 1px solid #EAF6FB; padding: 10px 0; }
+  .review-item:last-child { border-bottom: none; }
+  .review-item .review-head { display: flex; justify-content: space-between; font-size: 12px; color: #4C7A9C; margin-bottom: 3px; }
+  .review-item .review-comment { font-size: 13.5px; color: #012A4A; }
+  .review-stars-input { display: flex; gap: 6px; font-size: 26px; cursor: pointer; margin-bottom: 10px; }
+  .review-stars-input span { color: #D8ECF5; }
+  .review-stars-input span.active { color: #F4A300; }
+  #reviewCommentInput {
+    width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #BEE1EF;
+    font-family: inherit; font-size: 14px; resize: vertical; min-height: 60px; margin-bottom: 10px;
+  }
+  #reviewSubmitBtn {
+    width: 100%; padding: 10px; border-radius: 8px; border: none;
+    background: linear-gradient(90deg, #01497C, #012A4A); color: #fff; font-weight: bold; cursor: pointer; margin-bottom: 14px;
+  }
+
+  #requestFormBox select, #requestFormBox input, #requestFormBox textarea {
+    width: 100%; padding: 10px; margin-bottom: 8px; border-radius: 8px; border: 1px solid #BEE1EF;
+    font-family: inherit; font-size: 14px; background: #fff; color: #012A4A; resize: vertical;
+  }
+  #requestFormBox button {
+    width: 100%; padding: 11px; border-radius: 8px; border: none;
+    background: linear-gradient(90deg, #E14B3F, #C43B30); color: #fff; font-weight: bold; cursor: pointer; margin-bottom: 18px;
+  }
+  .request-card { background: #fff; border: 1px solid #D8ECF5; border-radius: 10px; padding: 12px; margin-bottom: 10px; }
+  .request-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 6px; }
+  .request-blood { font-size: 20px; font-weight: bold; color: #C43B30; }
+  .urgency-badge { padding: 2px 9px; border-radius: 999px; font-size: 11px; font-weight: 700; white-space: nowrap; }
+  .urgency-urgent { background: #FCEAE8; color: #C43B30; }
+  .urgency-soon { background: #FFF3D6; color: #946200; }
+  .urgency-planning { background: #E1F5EA; color: #1F7A4D; }
+  .fulfilled-badge { background: #E4F4FA; color: #01497C; padding: 2px 9px; border-radius: 999px; font-size: 11px; font-weight: 700; }
+  .request-meta { font-size: 12px; color: #4C7A9C; margin-bottom: 6px; }
+  .request-notes { font-size: 13.5px; color: #012A4A; margin-bottom: 8px; }
+
+  .chat-messages { max-height: 300px; overflow-y: auto; padding: 6px 0; display: flex; flex-direction: column; gap: 8px; margin-bottom: 6px; }
+  .chat-bubble { max-width: 78%; padding: 8px 12px; border-radius: 14px; font-size: 13.5px; }
+  .chat-bubble.mine { align-self: flex-end; background: #01497C; color: #fff; border-bottom-right-radius: 4px; }
+  .chat-bubble.theirs { align-self: flex-start; background: #EAF6FB; color: #012A4A; border-bottom-left-radius: 4px; }
+  .chat-bubble .chat-meta { font-size: 10.5px; opacity: 0.75; margin-top: 3px; }
+  .chat-input-row { display: flex; gap: 8px; margin-top: 8px; }
+  .chat-input-row input { flex: 1; padding: 10px; border-radius: 8px; border: 1px solid #BEE1EF; font-family: inherit; font-size: 14px; }
+  .chat-input-row button { background: #00B4D8; color: #fff; border: none; padding: 0 16px; border-radius: 8px; font-weight: bold; cursor: pointer; }
+</style>
+</head>
+<body class="login-active" id="pageBody">
+
+  <svg class="wave-bg" viewBox="0 0 1440 300" preserveAspectRatio="none">
+    <path fill="#48CAE4" fill-opacity="0.35" d="M0,150 C240,220 480,80 720,150 C960,220 1200,80 1440,150 L1440,300 L0,300 Z" />
+    <path fill="#00B4D8" fill-opacity="0.25" d="M0,180 C240,120 480,240 720,180 C960,120 1200,240 1440,180 L1440,300 L0,300 Z" />
+  </svg>
+
+  <!-- =====================================================
+       SCREEN 1: LOGIN / SIGNUP
+       ===================================================== -->
+  <div id="loginScreen">
+    <div class="logo-badge-wrap">
+      <div class="logo-badge">
+        <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M32 6 L52 13 V30 C52 44 43 53 32 57 C21 53 12 44 12 30 V13 Z" fill="rgba(255,255,255,0.12)" stroke="#ffffff" stroke-width="2"/>
+          <path class="ekg-line" d="M14 34 H24 L28 22 L34 46 L38 34 H50" stroke="#ffffff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+        </svg>
+      </div>
+    </div>
+
+    <h1>Emergency Medicine &amp; Blood Finder</h1>
+    <p class="subtitle">Log in or create an account to continue</p>
+
+    <div id="loginError"></div>
+
+    <div id="nameField" style="display:none;">
+      <input type="text" id="signupName" placeholder="Full name" />
+    </div>
+    <input type="email" id="authEmail" placeholder="Email" />
+    <input type="password" id="authPassword" placeholder="Password" />
+
+    <button id="authSubmitBtn" onclick="submitAuth()">Log In</button>
+    <div class="switch-link" onclick="toggleAuthMode()" id="authSwitchText">Don't have an account? Sign up</div>
+  </div>
+
+  <!-- =====================================================
+       MAIN APP
+       ===================================================== -->
+  <div id="mainApp" style="display:none;">
+
+    <div class="app-header">
+      <div class="logo-badge-small">
+        <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M32 6 L52 13 V30 C52 44 43 53 32 57 C21 53 12 44 12 30 V13 Z" fill="rgba(255,255,255,0.15)" stroke="#ffffff" stroke-width="3"/>
+          <path d="M14 34 H24 L28 22 L34 46 L38 34 H50" stroke="#ffffff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+        </svg>
+      </div>
+      <div>
+        <h1>Emergency Medicine &amp; Blood Finder</h1>
+        <p class="subtitle">Welcome, <span id="welcomeName"></span> — <span class="logout-link" onclick="logout()">Log out</span></p>
+      </div>
+    </div>
+
+    <div class="navbar">
+      <button class="nav-btn active" id="navFind" onclick="switchScreen('find')">Find</button>
+      <button class="nav-btn" id="navRequests" onclick="switchScreen('requests')">Requests</button>
+      <button class="nav-btn" id="navContacts" onclick="switchScreen('contacts')">Suppliers</button>
+      <button class="nav-btn" id="navProfile" onclick="switchScreen('profile')">Medical ID</button>
+    </div>
+
+    <!-- ---------------- FIND SCREEN ---------------- -->
+    <div class="screen active" id="findScreen">
+
+      <div id="locationBox">
+        <div id="locationText">Location not found yet.</div>
+        <div id="locationAccuracyNote"></div>
+        <div class="location-btn-row">
+          <button id="locateBtn" onclick="findMyLocation()">📍 Find My Location</button>
+          <button class="loc-toggle-btn" onclick="toggleManualLocation()">🌍 Choose Location Manually</button>
+        </div>
+
+        <div id="manualLocationBox" style="display:none;">
+          <select id="locCountry"></select>
+          <input type="text" id="locState" placeholder="State / Province (optional)" />
+          <input type="text" id="locCity" placeholder="City" />
+          <button id="setLocationBtn" onclick="geocodeLocation()">Set Location</button>
+        </div>
+      </div>
+
+      <div class="radius-row">
+        <label for="radiusSelect">Search radius:</label>
+        <select id="radiusSelect" onchange="updateRadius()">
+          <option value="5000">5 km</option>
+          <option value="10000" selected>10 km</option>
+          <option value="20000">20 km</option>
+          <option value="30000">30 km</option>
+          <option value="50000">50 km</option>
+          <option value="75000">75 km</option>
+          <option value="100000">100 km</option>
+        </select>
+      </div>
+
+      <div class="tabs">
+        <button class="tab-btn active" id="tab-hospital" onclick="switchTab('hospital')">Hospitals</button>
+        <button class="tab-btn" id="tab-blood" onclick="switchTab('blood')">Blood Banks</button>
+        <button class="tab-btn" id="tab-pharmacy" onclick="switchTab('pharmacy')">Pharmacies</button>
+        <button class="tab-btn" id="tab-favorites" onclick="switchTab('favorites')">★ Saved</button>
+      </div>
+
+      <div class="radius-row" id="bloodTypeFilterRow" style="display:none;">
+        <label for="bloodBankTypeSelect">Blood type needed:</label>
+        <select id="bloodBankTypeSelect" onchange="loadNearbyPlaces()">
+          <option value="">Any type</option>
+          <option value="O+">O+</option><option value="O-">O-</option>
+          <option value="A+">A+</option><option value="A-">A-</option>
+          <option value="B+">B+</option><option value="B-">B-</option>
+          <option value="AB+">AB+</option><option value="AB-">AB-</option>
+        </select>
+      </div>
+
+      <div id="map"></div>
+      <div id="results"></div>
+    </div>
+
+    <!-- ---------------- BLOOD REQUEST BOARD ---------------- -->
+    <div class="screen" id="requestsScreen">
+      <div class="shared-banner">These requests and their chat threads are visible to everyone using this app — don't share information you want kept private.</div>
+
+      <h3>Post a Blood Request</h3>
+      <div id="requestFormBox">
+        <select id="reqBloodType">
+          <option value="">Blood type needed...</option>
+          <option value="O+">O+</option><option value="O-">O-</option>
+          <option value="A+">A+</option><option value="A-">A-</option>
+          <option value="B+">B+</option><option value="B-">B-</option>
+          <option value="AB+">AB+</option><option value="AB-">AB-</option>
+        </select>
+        <select id="reqUrgency">
+          <option value="urgent">Urgent — needed now</option>
+          <option value="soon">Needed soon (within days)</option>
+          <option value="planning">Planning ahead</option>
+        </select>
+        <input type="text" id="reqLocation" placeholder="Location / hospital name" />
+        <input type="text" id="reqPhone" placeholder="Contact phone number" />
+        <textarea id="reqNotes" placeholder="Notes (units needed, patient info you're comfortable sharing, etc.)" rows="2"></textarea>
+        <button onclick="postRequest()">Post Request</button>
+      </div>
+
+      <h3>Open Requests</h3>
+      <div id="requestsList"><div class="loading">Loading requests...</div></div>
+    </div>
+
+    <!-- ---------------- CONTACTS / SUPPLIERS SCREEN ---------------- -->
+    <div class="screen" id="contactsScreen">
+      <h3>National Hotlines</h3>
+      <div class="card"><b>Emergency Services</b><br/><a class="call-btn" href="tel:911">Call 911</a></div>
+      <div class="card"><b>Poison Control</b><br/><a class="call-btn" href="tel:18002221222">Call 1-800-222-1222</a></div>
+      <div class="card"><b>Suicide &amp; Crisis Lifeline</b><br/><a class="call-btn" href="tel:988">Call 988</a></div>
+
+      <h3>My Blood Suppliers / Donors</h3>
+      <p class="subtitle" style="margin-bottom:8px;">Trusted contacts you can call directly, saved privately in your account.</p>
+      <div id="addContactBox">
+        <input type="text" id="contactName" placeholder="Name" />
+        <input type="text" id="contactPhone" placeholder="Phone number" />
+        <input type="text" id="contactRelation" placeholder="Relation / Organization (e.g. Donor, Blood Bank)" />
+        <select id="contactBloodType">
+          <option value="">Blood type they supply / donate...</option>
+          <option value="O+">O+</option><option value="O-">O-</option>
+          <option value="A+">A+</option><option value="A-">A-</option>
+          <option value="B+">B+</option><option value="B-">B-</option>
+          <option value="AB+">AB+</option><option value="AB-">AB-</option>
+          <option value="Any">Any type</option>
+        </select>
+        <input type="text" id="contactAddress" placeholder="Address (optional)" />
+        <textarea id="contactNotes" placeholder="Notes (e.g. availability hours, unit limits)" rows="2"></textarea>
+        <button onclick="addContact()">Save Supplier</button>
+      </div>
+
+      <div id="myContacts" style="margin-top:16px;"></div>
+    </div>
+
+    <!-- ---------------- PROFILE / MEDICAL ID SCREEN ---------------- -->
+    <div class="screen" id="profileScreen">
+      <div class="id-card" id="idCardPreview">
+        <div class="id-label">Blood Type</div>
+        <div class="id-blood" id="idBloodDisplay">—</div>
+        <div class="id-row"><b>Allergies:</b> <span id="idAllergiesDisplay">Not set</span></div>
+        <div class="id-row"><b>Conditions:</b> <span id="idConditionsDisplay">Not set</span></div>
+        <div class="id-row"><b>Medications:</b> <span id="idMedsDisplay">Not set</span></div>
+      </div>
+
+      <form id="profileForm" onsubmit="return saveProfile(event)">
+        <label for="profileBlood">Blood Type</label>
+        <select id="profileBlood">
+          <option value="">Select...</option>
+          <option>O+</option><option>O-</option>
+          <option>A+</option><option>A-</option>
+          <option>B+</option><option>B-</option>
+          <option>AB+</option><option>AB-</option>
+        </select>
+
+        <label for="profileAllergies">Allergies</label>
+        <textarea id="profileAllergies" placeholder="e.g. Penicillin, peanuts"></textarea>
+
+        <label for="profileConditions">Medical Conditions</label>
+        <textarea id="profileConditions" placeholder="e.g. Asthma, diabetes"></textarea>
+
+        <label for="profileMeds">Current Medications</label>
+        <textarea id="profileMeds" placeholder="e.g. Insulin, aspirin"></textarea>
+
+        <button type="submit">Save Medical ID</button>
+      </form>
+    </div>
+
+  </div>
+
+  <!-- ---------------- GENERIC DETAIL MODAL ---------------- -->
+  <div class="modal-overlay" id="detailModal">
+    <div class="modal-sheet">
+      <h2 id="detailModalTitle">Details</h2>
+      <div id="detailModalBody"></div>
+      <button class="modal-close" onclick="closeDetailModal()">Close</button>
+    </div>
+  </div>
+
+  <div id="toast"></div>
+
+<script>
+/* =========================================================
+   PART 1: LOGIN / SIGNUP (private, per-browser)
+   ========================================================= */
+let isSignupMode = false;
+
+function toggleAuthMode() {
+  isSignupMode = !isSignupMode;
+  document.getElementById("nameField").style.display = isSignupMode ? "block" : "none";
+  document.getElementById("authSubmitBtn").innerText = isSignupMode ? "Create Account" : "Log In";
+  document.getElementById("authSwitchText").innerText = isSignupMode ? "Already have an account? Log in" : "Don't have an account? Sign up";
+  document.getElementById("loginError").innerText = "";
+}
+
+function submitAuth() {
+  const email = document.getElementById("authEmail").value.trim().toLowerCase();
+  const password = document.getElementById("authPassword").value;
+  const name = document.getElementById("signupName").value.trim();
+  const errorBox = document.getElementById("loginError");
+  errorBox.innerText = "";
+
+  if (!email || !password || (isSignupMode && !name)) {
+    errorBox.innerText = "Please fill in all fields.";
+    return;
+  }
+
+  const users = JSON.parse(localStorage.getItem("users") || "{}");
+
+  if (isSignupMode) {
+    if (users[email]) { errorBox.innerText = "An account with this email already exists."; return; }
+    users[email] = { name: name, email: email, password: password };
+    localStorage.setItem("users", JSON.stringify(users));
+    loginSuccess(users[email]);
+  } else {
+    const user = users[email];
+    if (!user || user.password !== password) { errorBox.innerText = "Invalid email or password."; return; }
+    loginSuccess(user);
+  }
+}
+
+function loginSuccess(user) {
+  localStorage.setItem("currentUser", JSON.stringify(user));
+  showMainApp(user);
+}
+
+function logout() {
+  localStorage.removeItem("currentUser");
+  document.getElementById("mainApp").style.display = "none";
+  document.getElementById("loginScreen").style.display = "block";
+  document.getElementById("pageBody").classList.add("login-active");
+}
+
+function showMainApp(user) {
+  document.getElementById("pageBody").classList.remove("login-active");
+  document.getElementById("loginScreen").style.display = "none";
+  document.getElementById("mainApp").style.display = "block";
+  document.getElementById("welcomeName").innerText = user.name || user.email;
+  initMap();
+  loadContacts();
+  loadProfile();
+}
+
+window.onload = function () {
+  populateCountryDropdown();
+  const saved = localStorage.getItem("currentUser");
+  if (saved) showMainApp(JSON.parse(saved));
+};
+
+function getCurrentUser() {
+  return JSON.parse(localStorage.getItem("currentUser") || "null");
+}
+
+/* =========================================================
+   PART 2: NAVIGATION
+   ========================================================= */
+function switchScreen(screenName) {
+  ["find", "requests", "contacts", "profile"].forEach(function (s) {
+    document.getElementById(s + "Screen").classList.remove("active");
+    document.getElementById("nav" + s.charAt(0).toUpperCase() + s.slice(1)).classList.remove("active");
+  });
+
+  document.getElementById(screenName + "Screen").classList.add("active");
+  document.getElementById("nav" + screenName.charAt(0).toUpperCase() + screenName.slice(1)).classList.add("active");
+
+  if (screenName === "find" && map) {
+    setTimeout(function () { map.invalidateSize(); }, 100);
+  }
+  if (screenName === "requests") {
+    renderRequests();
+  }
+}
+
+/* =========================================================
+   PART 3: BLOOD SUPPLIERS / DONORS (private, per-account)
+   ========================================================= */
+function getContactsKey() {
+  const user = getCurrentUser();
+  return "contacts_" + user.email;
+}
+
+function loadContacts() {
+  const list = JSON.parse(localStorage.getItem(getContactsKey()) || "[]");
+  renderContacts(list);
+}
+
+function addContact() {
+  const name = document.getElementById("contactName").value.trim();
+  const phone = document.getElementById("contactPhone").value.trim();
+  const relation = document.getElementById("contactRelation").value.trim();
+  const bloodType = document.getElementById("contactBloodType").value;
+  const address = document.getElementById("contactAddress").value.trim();
+  const notes = document.getElementById("contactNotes").value.trim();
+
+  if (!name || !phone) { showToast("Please enter at least a name and phone number."); return; }
+
+  const list = JSON.parse(localStorage.getItem(getContactsKey()) || "[]");
+  list.push({ id: Date.now(), name: name, phone: phone, relation: relation, bloodType: bloodType, address: address, notes: notes });
+  localStorage.setItem(getContactsKey(), JSON.stringify(list));
+
+  document.getElementById("contactName").value = "";
+  document.getElementById("contactPhone").value = "";
+  document.getElementById("contactRelation").value = "";
+  document.getElementById("contactBloodType").value = "";
+  document.getElementById("contactAddress").value = "";
+  document.getElementById("contactNotes").value = "";
+
+  renderContacts(list);
+  showToast("Supplier saved.");
+}
+
+function deleteContact(id) {
+  let list = JSON.parse(localStorage.getItem(getContactsKey()) || "[]");
+  list = list.filter(function (c) { return c.id !== id; });
+  localStorage.setItem(getContactsKey(), JSON.stringify(list));
+  renderContacts(list);
+  showToast("Supplier removed.");
+}
+
+function renderContacts(list) {
+  const box = document.getElementById("myContacts");
+  if (list.length === 0) { box.innerHTML = ""; return; }
+  let html = "";
+  list.forEach(function (c) {
+    html += "<div class='card'>";
+    html += "<b>" + escapeHtml(c.name) + "</b> (" + escapeHtml(c.relation || "Contact") + ")";
+    if (c.bloodType) html += "<span class='supplier-badge'>" + escapeHtml(c.bloodType) + "</span>";
+    html += "<br/>";
+    if (c.address) html += "<div>" + escapeHtml(c.address) + "</div>";
+    if (c.notes) html += "<div style='color:#4C7A9C; font-size:12.5px; margin-top:4px;'>" + escapeHtml(c.notes) + "</div>";
+    html += "<a class='call-btn' href='tel:" + escapeHtml(c.phone) + "'>Call " + escapeHtml(c.phone) + "</a>";
+    html += "<button class='del-btn' onclick='deleteContact(" + c.id + ")'>Delete</button>";
+    html += "</div>";
+  });
+  box.innerHTML = html;
+}
+
+/* =========================================================
+   PART 4: MEDICAL ID / PROFILE (private, per-account)
+   ========================================================= */
+function getProfileKey() {
+  const user = getCurrentUser();
+  return "profile_" + user.email;
+}
+
+function loadProfile() {
+  const profile = JSON.parse(localStorage.getItem(getProfileKey()) || "{}");
+  document.getElementById("profileBlood").value = profile.blood || "";
+  document.getElementById("profileAllergies").value = profile.allergies || "";
+  document.getElementById("profileConditions").value = profile.conditions || "";
+  document.getElementById("profileMeds").value = profile.meds || "";
+  renderIdCard(profile);
+}
+
+function saveProfile(event) {
+  event.preventDefault();
+  const profile = {
+    blood: document.getElementById("profileBlood").value,
+    allergies: document.getElementById("profileAllergies").value.trim(),
+    conditions: document.getElementById("profileConditions").value.trim(),
+    meds: document.getElementById("profileMeds").value.trim()
+  };
+  localStorage.setItem(getProfileKey(), JSON.stringify(profile));
+  renderIdCard(profile);
+  showToast("Medical ID saved.");
+  return false;
+}
+
+function renderIdCard(profile) {
+  document.getElementById("idBloodDisplay").innerText = profile.blood || "—";
+  document.getElementById("idAllergiesDisplay").innerText = profile.allergies || "Not set";
+  document.getElementById("idConditionsDisplay").innerText = profile.conditions || "Not set";
+  document.getElementById("idMedsDisplay").innerText = profile.meds || "Not set";
+}
+
+/* =========================================================
+   PART 5: TOAST NOTIFICATIONS
+   ========================================================= */
+let toastTimer = null;
+function showToast(message) {
+  const toast = document.getElementById("toast");
+  toast.innerText = message;
+  toast.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(function () { toast.classList.remove("show"); }, 2600);
+}
+
+/* =========================================================
+   PART 6: FAVORITES (private, per-account)
+   ========================================================= */
+function getFavoritesKey() {
+  const user = getCurrentUser();
+  return "favorites_" + user.email;
+}
+
+function loadFavorites() {
+  return JSON.parse(localStorage.getItem(getFavoritesKey()) || "[]");
+}
+
+function isFavorite(favId, favorites) {
+  return favorites.some(function (f) { return f.favId === favId; });
+}
+
+function toggleFavorite(favId, name, address, lat, lon) {
+  let favorites = loadFavorites();
+  if (isFavorite(favId, favorites)) {
+    favorites = favorites.filter(function (f) { return f.favId !== favId; });
+    showToast("Removed from Saved.");
+  } else {
+    favorites.push({ favId: favId, name: name, address: address, lat: lat, lon: lon });
+    showToast("Saved for quick access.");
+  }
+  localStorage.setItem(getFavoritesKey(), JSON.stringify(favorites));
+  if (currentTab === "favorites") renderFavorites();
+  else loadNearbyPlaces();
+}
+
+function renderFavorites() {
+  const results = document.getElementById("results");
+  const favorites = loadFavorites();
+
+  if (!map) initMap();
+  markersLayer.clearLayers();
+
+  if (favorites.length === 0) {
+    results.innerHTML = "<p class='empty-state'>No saved places yet. Tap the ★ on any result to save it here.</p>";
+    return;
+  }
+
+  let html = "";
+  favorites.forEach(function (f) {
+    html += "<div class='card'>";
+    html += "<button class='fav-star saved' onclick=\"toggleFavorite('" + f.favId + "')\">★</button>";
+    html += "<h3>" + escapeHtml(f.name) + "</h3>";
+    if (f.address) html += "<div>" + escapeHtml(f.address) + "</div>";
+    if (f.lat && f.lon) {
+      html += "<a class='call-btn' target='_blank' href='https://www.google.com/maps/dir/?api=1&destination=" + f.lat + "," + f.lon + "'>Directions</a>";
+      html += "<button class='call-btn' onclick='showPlaceOnMap(" + f.lat + "," + f.lon + ")'>View on Map</button>";
+      html += "<button class='call-btn' onclick=\"openReviewsModal('" + f.favId + "','" + escapeJsString(f.name) + "')\">★ Reviews</button>";
+      L.marker([f.lat, f.lon]).bindPopup("<b>" + escapeHtml(f.name) + "</b>").addTo(markersLayer);
+    }
+    html += "</div>";
+  });
+  results.innerHTML = html;
+}
+
+/* =========================================================
+   PART 7: MAP + NEARBY PLACES (Leaflet + Overpass API)
+   ========================================================= */
+let map = null;
+let markersLayer = null;
+let myLocationMarker = null;
+let myLat = null;
+let myLon = null;
+let currentTab = "hospital";
+let searchRadius = 10000;
+let lastQueriedLat = null;
+let lastQueriedLon = null;
+let locationWatchId = null;
+
+function initMap() {
+  if (map) return;
+  map = L.map("map").setView([20, 0], 2);
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution: "&copy; OpenStreetMap contributors" }).addTo(map);
+  markersLayer = L.layerGroup().addTo(map);
+}
+
+function updateRadius() {
+  searchRadius = parseInt(document.getElementById("radiusSelect").value, 10);
+  if (myLat !== null && myLon !== null && currentTab !== "favorites") loadNearbyPlaces();
+}
+
+/* ---- Fast + accurate geolocation ----
+   Phase 1: an instant approximate fix (uses a cached position if the
+   browser has one, so it can return within ~1 second).
+   Phase 2: a short high-accuracy GPS refinement (a few seconds) that
+   keeps the best reading and stops as soon as it's tight enough. */
+function findMyLocation() {
+  document.getElementById("locationText").innerText = "Locating...";
+  document.getElementById("locationAccuracyNote").innerText = "";
+
+  if (!navigator.geolocation) {
+    document.getElementById("locationText").innerText = "Location not supported. Using a sample location.";
+    myLat = 40.7128; myLon = -74.0060;
+    afterLocationFound();
+    return;
+  }
+
+  navigator.geolocation.getCurrentPosition(
+    function (position) {
+      updateLocationFromPosition(position, "Approximate location found — refining...");
+      startAccurateWatch(false);
+    },
+    function () {
+      startAccurateWatch(true);
+    },
+    { enableHighAccuracy: false, timeout: 5000, maximumAge: 60000 }
+  );
+}
+
+function startAccurateWatch(isFallback) {
+  if (locationWatchId !== null) { navigator.geolocation.clearWatch(locationWatchId); locationWatchId = null; }
+
+  let bestAccuracy = Infinity;
+  let readingCount = 0;
+
+  locationWatchId = navigator.geolocation.watchPosition(
+    function (position) {
+      readingCount++;
+      if (position.coords.accuracy <= bestAccuracy) {
+        bestAccuracy = position.coords.accuracy;
+        updateLocationFromPosition(position, "Location found");
+      }
+      if (bestAccuracy <= 30 || readingCount >= 4) {
+        if (locationWatchId !== null) { navigator.geolocation.clearWatch(locationWatchId); locationWatchId = null; }
+      }
+    },
+    function () {
+      if (isFallback) {
+        document.getElementById("locationText").innerText = "Could not get your location. Please allow location access, or set it manually below.";
+        document.getElementById("locationAccuracyNote").innerText = "";
+      }
+      if (locationWatchId !== null) { navigator.geolocation.clearWatch(locationWatchId); locationWatchId = null; }
+    },
+    { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+  );
+
+  setTimeout(function () {
+    if (locationWatchId !== null) { navigator.geolocation.clearWatch(locationWatchId); locationWatchId = null; }
+  }, 8000);
+}
+
+function updateLocationFromPosition(position, label) {
+  myLat = position.coords.latitude;
+  myLon = position.coords.longitude;
+  const accuracy = Math.round(position.coords.accuracy);
+  document.getElementById("locationText").innerText = label + ": " + myLat.toFixed(5) + ", " + myLon.toFixed(5);
+  document.getElementById("locationAccuracyNote").innerText = "Accuracy: ±" + accuracy + " m";
+  afterLocationFound();
+}
+
+/* ---- Manual location: Country / State / City ---- */
+const COUNTRY_LIST = ["Afghanistan","Albania","Algeria","Andorra","Angola","Antigua and Barbuda","Argentina","Armenia","Australia","Austria","Azerbaijan","Bahamas","Bahrain","Bangladesh","Barbados","Belarus","Belgium","Belize","Benin","Bhutan","Bolivia","Bosnia and Herzegovina","Botswana","Brazil","Brunei","Bulgaria","Burkina Faso","Burundi","Cabo Verde","Cambodia","Cameroon","Canada","Central African Republic","Chad","Chile","China","Colombia","Comoros","Congo","Costa Rica","Croatia","Cuba","Cyprus","Czechia","Denmark","Djibouti","Dominica","Dominican Republic","Ecuador","Egypt","El Salvador","Equatorial Guinea","Eritrea","Estonia","Eswatini","Ethiopia","Fiji","Finland","France","Gabon","Gambia","Georgia","Germany","Ghana","Greece","Grenada","Guatemala","Guinea","Guinea-Bissau","Guyana","Haiti","Honduras","Hungary","Iceland","India","Indonesia","Iran","Iraq","Ireland","Israel","Italy","Jamaica","Japan","Jordan","Kazakhstan","Kenya","Kiribati","Kuwait","Kyrgyzstan","Laos","Latvia","Lebanon","Lesotho","Liberia","Libya","Liechtenstein","Lithuania","Luxembourg","Madagascar","Malawi","Malaysia","Maldives","Mali","Malta","Marshall Islands","Mauritania","Mauritius","Mexico","Micronesia","Moldova","Monaco","Mongolia","Montenegro","Morocco","Mozambique","Myanmar","Namibia","Nauru","Nepal","Netherlands","New Zealand","Nicaragua","Niger","Nigeria","North Korea","North Macedonia","Norway","Oman","Pakistan","Palau","Palestine","Panama","Papua New Guinea","Paraguay","Peru","Philippines","Poland","Portugal","Qatar","Romania","Russia","Rwanda","Saint Kitts and Nevis","Saint Lucia","Saint Vincent and the Grenadines","Samoa","San Marino","Sao Tome and Principe","Saudi Arabia","Senegal","Serbia","Seychelles","Sierra Leone","Singapore","Slovakia","Slovenia","Solomon Islands","Somalia","South Africa","South Korea","South Sudan","Spain","Sri Lanka","Sudan","Suriname","Sweden","Switzerland","Syria","Taiwan","Tajikistan","Tanzania","Thailand","Timor-Leste","Togo","Tonga","Trinidad and Tobago","Tunisia","Turkey","Turkmenistan","Tuvalu","Uganda","Ukraine","United Arab Emirates","United Kingdom","United States","Uruguay","Uzbekistan","Vanuatu","Vatican City","Venezuela","Vietnam","Yemen","Zambia","Zimbabwe"];
+
+function populateCountryDropdown() {
+  const select = document.getElementById("locCountry");
+  if (!select) return;
+  let html = "<option value=''>Select country...</option>";
+  COUNTRY_LIST.forEach(function (c) {
+    html += "<option value='" + escapeHtml(c) + "'" + (c === "India" ? " selected" : "") + ">" + escapeHtml(c) + "</option>";
+  });
+  select.innerHTML = html;
+}
+
+function toggleManualLocation() {
+  const box = document.getElementById("manualLocationBox");
+  box.style.display = (box.style.display === "none" || box.style.display === "") ? "block" : "none";
+}
+
+async function geocodeLocation() {
+  const country = document.getElementById("locCountry").value;
+  const state = document.getElementById("locState").value.trim();
+  const city = document.getElementById("locCity").value.trim();
+
+  if (!country) { showToast("Please select a country."); return; }
+  if (!city) { showToast("Please enter a city."); return; }
+
+  const btn = document.getElementById("setLocationBtn");
+  btn.disabled = true;
+  btn.innerText = "Searching...";
+
+  const queryStr = [city, state, country].filter(Boolean).join(", ");
+
+  try {
+    const url = "https://nominatim.openstreetmap.org/search?format=json&limit=1&q=" + encodeURIComponent(queryStr);
+    const response = await fetch(url);
+    if (!response.ok) throw new Error("Geocoding service unavailable.");
+    const data = await response.json();
+
+    if (!data || data.length === 0) {
+      showToast("Location not found. Try refining the city or state.");
+    } else {
+      myLat = parseFloat(data[0].lat);
+      myLon = parseFloat(data[0].lon);
+      document.getElementById("locationText").innerText = "Location set: " + (data[0].display_name || queryStr);
+      document.getElementById("locationAccuracyNote").innerText = "";
+      if (locationWatchId !== null) { navigator.geolocation.clearWatch(locationWatchId); locationWatchId = null; }
+      afterLocationFound(true);
+      showToast("Location updated.");
+    }
+  } catch (error) {
+    console.error(error);
+    showToast("Could not search that location. Check your connection and try again.");
+  }
+
+  btn.disabled = false;
+  btn.innerText = "Set Location";
+}
+
+function afterLocationFound(forceReload) {
+  if (!map) initMap();
+  const zoomLevel = searchRadius >= 50000 ? 9 : (searchRadius >= 20000 ? 11 : 14);
+  map.setView([myLat, myLon], zoomLevel);
+
+  if (myLocationMarker) map.removeLayer(myLocationMarker);
+  myLocationMarker = L.circleMarker([myLat, myLon], { radius: 8, color: "#00B4D8", fillColor: "#00B4D8", fillOpacity: 0.9, weight: 2 })
+    .addTo(map)
+    .bindPopup("You are here");
+
+  const moved = lastQueriedLat === null || distanceKm(myLat, myLon, lastQueriedLat, lastQueriedLon) > 0.05;
+  if (forceReload || moved) {
+    lastQueriedLat = myLat;
+    lastQueriedLon = myLon;
+    loadNearbyPlaces();
+  }
+}
+
+function switchTab(tabName) {
+  currentTab = tabName;
+
+  document.getElementById("tab-hospital").classList.toggle("active", tabName === "hospital");
+  document.getElementById("tab-blood").classList.toggle("active", tabName === "blood");
+  document.getElementById("tab-pharmacy").classList.toggle("active", tabName === "pharmacy");
+  document.getElementById("tab-favorites").classList.toggle("active", tabName === "favorites");
+
+  document.getElementById("bloodTypeFilterRow").style.display = (tabName === "blood") ? "flex" : "none";
+
+  if (tabName === "favorites") { renderFavorites(); return; }
+  if (myLat !== null && myLon !== null) loadNearbyPlaces();
+}
+
+async function loadNearbyPlaces() {
+  const results = document.getElementById("results");
+  results.innerHTML = "<div class='loading'>Finding nearby places...</div>";
+
+  if (!map) initMap();
+  markersLayer.clearLayers();
+
+  if (myLat === null || myLon === null) {
+    results.innerHTML = "<div class='loading'>Please click Find My Location, or set a location manually, first.</div>";
+    return;
+  }
+
+  let filter;
+  if (currentTab === "hospital") {
+    filter = `
+      node["amenity"="hospital"](around:${searchRadius},${myLat},${myLon});
+      way["amenity"="hospital"](around:${searchRadius},${myLat},${myLon});
+      relation["amenity"="hospital"](around:${searchRadius},${myLat},${myLon});
+    `;
+  } else if (currentTab === "pharmacy") {
+    filter = `
+      node["amenity"="pharmacy"](around:${searchRadius},${myLat},${myLon});
+      way["amenity"="pharmacy"](around:${searchRadius},${myLat},${myLon});
+      relation["amenity"="pharmacy"](around:${searchRadius},${myLat},${myLon});
+    `;
+  } else {
+    filter = `
+      node["amenity"="blood_bank"](around:${searchRadius},${myLat},${myLon});
+      way["amenity"="blood_bank"](around:${searchRadius},${myLat},${myLon});
+      relation["amenity"="blood_bank"](around:${searchRadius},${myLat},${myLon});
+      node["healthcare"="blood_donation"](around:${searchRadius},${myLat},${myLon});
+      way["healthcare"="blood_donation"](around:${searchRadius},${myLat},${myLon});
+      relation["healthcare"="blood_donation"](around:${searchRadius},${myLat},${myLon});
+    `;
+  }
+
+  const query = `[out:json][timeout:25];(${filter});out center tags;`;
+
+  try {
+    const response = await fetch("https://overpass-api.de/api/interpreter", {
+      method: "POST",
+      headers: { "Content-Type": "text/plain" },
+      body: query
+    });
+    if (!response.ok) throw new Error("Nearby places service unavailable.");
+
+    const data = await response.json();
+    const places = data.elements || [];
+    localStorage.setItem("lastResults_" + currentTab, JSON.stringify({ places: places, lat: myLat, lon: myLon, radius: searchRadius }));
+    renderPlaces(places);
+  } catch (error) {
+    console.error(error);
+    const cached = JSON.parse(localStorage.getItem("lastResults_" + currentTab) || "null");
+    if (cached) {
+      results.innerHTML = "<div class='loading'>Live service unavailable — showing last saved results.</div>";
+      renderPlaces(cached.places, true);
+    } else {
+      results.innerHTML = "<div class='loading'>Unable to load nearby places right now. Please try again, or choose a smaller radius.</div>";
+    }
+  }
+}
+
+function renderPlaces(places, append) {
+  const results = document.getElementById("results");
+  const favorites = loadFavorites();
+
+  if (places.length === 0) {
+    const radiusKm = (searchRadius / 1000).toFixed(0);
+    results.innerHTML = (append ? results.innerHTML : "") + "<p class='empty-state'>No nearby places found within " + radiusKm + " km. Try a larger search radius above.</p>";
+    return;
+  }
+
+  const neededType = (currentTab === "blood") ? document.getElementById("bloodBankTypeSelect").value : "";
+
+  places.sort(function (a, b) {
+    const distSort = distanceKm(getElementLat(a), getElementLon(a), myLat, myLon) - distanceKm(getElementLat(b), getElementLon(b), myLat, myLon);
+    if (!neededType) return distSort;
+    const aMatch = placeHasBloodType(a, neededType) ? 0 : 1;
+    const bMatch = placeHasBloodType(b, neededType) ? 0 : 1;
+    return (aMatch - bMatch) || distSort;
+  });
+
+  let html = append ? results.innerHTML : "";
+
+  places.slice(0, 30).forEach(function (place) {
+    const lat = getElementLat(place);
+    const lon = getElementLon(place);
+    const tags = place.tags || {};
+    const name = tags.name || "Unnamed place";
+    const phone = tags.phone || tags["contact:phone"] || "";
+    const address = [tags["addr:housenumber"], tags["addr:street"], tags["addr:city"]].filter(Boolean).join(" ");
+
+    const distance = distanceKm(lat, lon, myLat, myLon).toFixed(1);
+    const favId = (place.type || "n") + place.id;
+    const saved = isFavorite(favId, favorites);
+
+    html += "<div class='card'>";
+    html += "<button class='fav-star" + (saved ? " saved" : "") + "' onclick=\"toggleFavorite('" + favId + "', '" + escapeJsString(name) + "', '" + escapeJsString(address) + "', " + lat + ", " + lon + ")\">" + (saved ? "★" : "☆") + "</button>";
+    html += "<h3>" + escapeHtml(name) + "</h3>";
+    if (address) html += "<div>" + escapeHtml(address) + "</div>";
+    html += "<span class='tag'>" + distance + " km away</span>";
+
+    if (currentTab === "blood" && neededType) {
+      if (placeHasBloodType(place, neededType)) html += "<span class='tag green'>" + escapeHtml(neededType) + " likely in stock</span>";
+      else html += "<span class='tag red'>Call to confirm " + escapeHtml(neededType) + "</span>";
+    }
+
+    if (phone) html += "<a class='call-btn' href='tel:" + encodeURIComponent(phone) + "'>Call</a>";
+    html += "<a class='call-btn' target='_blank' href='https://www.google.com/maps/dir/?api=1&destination=" + lat + "," + lon + "'>Directions</a>";
+    html += "<button class='call-btn' onclick='showPlaceOnMap(" + lat + "," + lon + ")'>View on Map</button>";
+    html += "<button class='call-btn' onclick=\"openReviewsModal('" + favId + "','" + escapeJsString(name) + "')\">★ Reviews</button>";
+    html += "</div>";
+
+    L.marker([lat, lon]).bindPopup("<b>" + escapeHtml(name) + "</b><br>" + distance + " km away").addTo(markersLayer);
+  });
+
+  results.innerHTML = html;
+}
+
+function placeHasBloodType(place, type) {
+  const tags = place.tags || {};
+  const key = "blood:" + type;
+  if (tags[key] && tags[key].toLowerCase() !== "no") return true;
+  return false;
+}
+
+function getElementLat(element) { return element.lat !== undefined ? element.lat : (element.center ? element.center.lat : myLat); }
+function getElementLon(element) { return element.lon !== undefined ? element.lon : (element.center ? element.center.lon : myLon); }
+
+function distanceKm(lat1, lon1, lat2, lon2) {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function showPlaceOnMap(lat, lon) {
+  if (!map) initMap();
+  map.setView([lat, lon], 17);
+}
+
+/* =========================================================
+   PART 8: REVIEWS & RATINGS (shared across all users)
+   ========================================================= */
+let currentReviewPlaceId = null;
+let selectedReviewStars = 0;
+
+async function getReviews(placeId) {
+  try {
+    const res = await window.storage.get("reviews:" + placeId, true);
+    return res ? JSON.parse(res.value) : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+async function addReview(placeId, rating, comment) {
+  const user = getCurrentUser();
+  const reviews = await getReviews(placeId);
+  reviews.push({ name: user.name || user.email, rating: rating, comment: comment, timestamp: Date.now() });
+  try {
+    await window.storage.set("reviews:" + placeId, JSON.stringify(reviews), true);
+    return true;
+  } catch (e) {
+    showToast("Could not save your review. Please try again.");
+    return false;
+  }
+}
+
+function avgRating(reviews) {
+  if (!reviews.length) return 0;
+  return reviews.reduce(function (s, r) { return s + r.rating; }, 0) / reviews.length;
+}
+
+function starsHtml(rating) {
+  let html = "<span class='stars'>";
+  for (let i = 1; i <= 5; i++) html += (i <= Math.round(rating) ? "★" : "<span class='empty-star'>★</span>");
+  html += "</span>";
+  return html;
+}
+
+async function openReviewsModal(placeId, placeName) {
+  currentReviewPlaceId = placeId;
+  selectedReviewStars = 0;
+  document.getElementById("detailModalTitle").innerText = "★ Reviews — " + placeName;
+  document.getElementById("detailModalBody").innerHTML = "<div class='loading'>Loading reviews...</div>";
+  document.getElementById("detailModal").classList.add("active");
+
+  const reviews = await getReviews(placeId);
+  renderReviewsBody(reviews);
+}
+
+function renderReviewsBody(reviews) {
+  const avg = avgRating(reviews);
+  let html = "";
+  html += "<div class='rating-row'>" + starsHtml(avg) + " <span>" + (reviews.length ? avg.toFixed(1) + " (" + reviews.length + " review" + (reviews.length === 1 ? "" : "s") + ")" : "No reviews yet") + "</span></div>";
+
+  html += "<div class='review-stars-input' id='reviewStarsInput'>";
+  for (let i = 1; i <= 5; i++) html += "<span data-star='" + i + "' onclick='setReviewStars(" + i + ")'>★</span>";
+  html += "</div>";
+  html += "<textarea id='reviewCommentInput' placeholder='Share your experience (wait time, staff, availability)...'></textarea>";
+  html += "<button id='reviewSubmitBtn' onclick='submitReview()'>Submit Review</button>";
+
+  html += "<div id='reviewsListBox'>";
+  if (reviews.length === 0) {
+    html += "<p class='empty-state'>Be the first to leave a review.</p>";
+  } else {
+    reviews.slice().reverse().forEach(function (r) {
+      html += "<div class='review-item'>";
+      html += "<div class='review-head'><span>" + escapeHtml(r.name) + "</span>" + starsHtml(r.rating) + "</div>";
+      if (r.comment) html += "<div class='review-comment'>" + escapeHtml(r.comment) + "</div>";
+      html += "</div>";
+    });
+  }
+  html += "</div>";
+
+  document.getElementById("detailModalBody").innerHTML = html;
+}
+
+function setReviewStars(n) {
+  selectedReviewStars = n;
+  const spans = document.querySelectorAll("#reviewStarsInput span");
+  spans.forEach(function (s) {
+    s.classList.toggle("active", parseInt(s.dataset.star, 10) <= n);
+  });
+}
+
+async function submitReview() {
+  if (selectedReviewStars === 0) { showToast("Please select a star rating."); return; }
+  const comment = document.getElementById("reviewCommentInput").value.trim();
+  const btn = document.getElementById("reviewSubmitBtn");
+  btn.disabled = true;
+  btn.innerText = "Saving...";
+
+  const ok = await addReview(currentReviewPlaceId, selectedReviewStars, comment);
+
+  btn.disabled = false;
+  btn.innerText = "Submit Review";
+
+  if (ok) {
+    showToast("Review saved.");
+    const reviews = await getReviews(currentReviewPlaceId);
+    selectedReviewStars = 0;
+    renderReviewsBody(reviews);
+  }
+}
+
+/* =========================================================
+   PART 9: BLOOD REQUEST BOARD (shared across all users)
+   ========================================================= */
+async function getRequests() {
+  try {
+    const res = await window.storage.get("blood-requests", true);
+    return res ? JSON.parse(res.value) : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+async function saveRequests(list) {
+  try {
+    await window.storage.set("blood-requests", JSON.stringify(list), true);
+    return true;
+  } catch (e) {
+    showToast("Could not save. Please try again.");
+    return false;
+  }
+}
+
+async function postRequest() {
+  const bloodType = document.getElementById("reqBloodType").value;
+  const urgency = document.getElementById("reqUrgency").value;
+  const location = document.getElementById("reqLocation").value.trim();
+  const phone = document.getElementById("reqPhone").value.trim();
+  const notes = document.getElementById("reqNotes").value.trim();
+
+  if (!bloodType || !location || !phone) {
+    showToast("Please fill in blood type, location, and phone number.");
+    return;
+  }
+
+  const user = getCurrentUser();
+  const list = await getRequests();
+  list.unshift({
+    id: "req_" + Date.now(),
+    bloodType: bloodType,
+    urgency: urgency,
+    location: location,
+    phone: phone,
+    notes: notes,
+    postedBy: user.name || user.email,
+    postedByEmail: user.email,
+    timestamp: Date.now(),
+    status: "open"
+  });
+
+  const ok = await saveRequests(list.slice(0, 200));
+  if (ok) {
+    document.getElementById("reqBloodType").value = "";
+    document.getElementById("reqLocation").value = "";
+    document.getElementById("reqPhone").value = "";
+    document.getElementById("reqNotes").value = "";
+    showToast("Request posted.");
+    renderRequests();
+  }
+}
+
+async function renderRequests() {
+  const box = document.getElementById("requestsList");
+  box.innerHTML = "<div class='loading'>Loading requests...</div>";
+
+  const list = await getRequests();
+  const user = getCurrentUser();
+
+  if (list.length === 0) {
+    box.innerHTML = "<p class='empty-state'>No blood requests posted yet.</p>";
+    return;
+  }
+
+  const urgencyLabels = { urgent: "Urgent", soon: "Needed soon", planning: "Planning ahead" };
+  let html = "";
+
+  list.forEach(function (r) {
+    const isMine = user && r.postedByEmail === user.email;
+    const timeAgo = timeAgoText(r.timestamp);
+
+    html += "<div class='request-card'>";
+    html += "<div class='request-head'>";
+    html += "<span class='request-blood'>" + escapeHtml(r.bloodType) + "</span>";
+    if (r.status === "fulfilled") html += "<span class='fulfilled-badge'>Fulfilled</span>";
+    else html += "<span class='urgency-badge urgency-" + r.urgency + "'>" + (urgencyLabels[r.urgency] || r.urgency) + "</span>";
+    html += "</div>";
+    html += "<div class='request-meta'>" + escapeHtml(r.location) + " · posted by " + escapeHtml(r.postedBy) + " · " + timeAgo + "</div>";
+    if (r.notes) html += "<div class='request-notes'>" + escapeHtml(r.notes) + "</div>";
+
+    html += "<a class='call-btn' href='tel:" + escapeHtml(r.phone) + "'>Call</a>";
+    html += "<button class='call-btn' onclick=\"openChatModal('" + r.id + "','" + escapeJsString(r.bloodType) + "','" + escapeJsString(r.location) + "')\">Chat</button>";
+
+    if (isMine && r.status !== "fulfilled") {
+      html += "<button class='call-btn' onclick=\"markFulfilled('" + r.id + "')\">Mark Fulfilled</button>";
+    }
+    if (isMine) {
+      html += "<button class='del-btn' onclick=\"deleteRequest('" + r.id + "')\">Delete</button>";
+    }
+    html += "</div>";
+  });
+
+  box.innerHTML = html;
+}
+
+async function markFulfilled(id) {
+  const list = await getRequests();
+  const item = list.find(function (r) { return r.id === id; });
+  if (item) item.status = "fulfilled";
+  const ok = await saveRequests(list);
+  if (ok) { showToast("Marked as fulfilled."); renderRequests(); }
+}
+
+async function deleteRequest(id) {
+  let list = await getRequests();
+  list = list.filter(function (r) { return r.id !== id; });
+  const ok = await saveRequests(list);
+  if (ok) { showToast("Request removed."); renderRequests(); }
+}
+
+function timeAgoText(timestamp) {
+  const diffMs = Date.now() - timestamp;
+  const mins = Math.floor(diffMs / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return mins + "m ago";
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return hrs + "h ago";
+  const days = Math.floor(hrs / 24);
+  return days + "d ago";
+}
+
+/* =========================================================
+   PART 10: CHAT (shared per-request, lightly polled)
+   ========================================================= */
+let currentChatRequestId = null;
+let chatPollInterval = null;
+
+async function getChatMessages(requestId) {
+  try {
+    const res = await window.storage.get("chat:" + requestId, true);
+    return res ? JSON.parse(res.value) : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+async function sendChatMessage() {
+  const input = document.getElementById("chatInputField");
+  const text = input.value.trim();
+  if (!text) return;
+  const user = getCurrentUser();
+
+  const messages = await getChatMessages(currentChatRequestId);
+  messages.push({ sender: user.name || user.email, senderEmail: user.email, text: text, timestamp: Date.now() });
+
+  try {
+    await window.storage.set("chat:" + currentChatRequestId, JSON.stringify(messages.slice(-200)), true);
+    input.value = "";
+    renderChatMessages(messages);
+  } catch (e) {
+    showToast("Message failed to send. Please try again.");
+  }
+}
+
+function openChatModal(requestId, bloodType, location) {
+  currentChatRequestId = requestId;
+  document.getElementById("detailModalTitle").innerText = "Chat — " + bloodType + " · " + location;
+
+  document.getElementById("detailModalBody").innerHTML =
+    "<div class='chat-messages' id='chatMessagesBox'><div class='loading'>Loading messages...</div></div>" +
+    "<div class='chat-input-row'>" +
+    "<input type='text' id='chatInputField' placeholder='Type a message...' onkeydown='if(event.key===\"Enter\"){sendChatMessage();}' />" +
+    "<button onclick='sendChatMessage()'>Send</button>" +
+    "</div>";
+
+  document.getElementById("detailModal").classList.add("active");
+
+  getChatMessages(requestId).then(renderChatMessages);
+
+  if (chatPollInterval) clearInterval(chatPollInterval);
+  chatPollInterval = setInterval(function () {
+    getChatMessages(currentChatRequestId).then(renderChatMessages);
+  }, 6000);
+}
+
+function renderChatMessages(messages) {
+  const box = document.getElementById("chatMessagesBox");
+  if (!box) return;
+  const user = getCurrentUser();
+
+  if (messages.length === 0) {
+    box.innerHTML = "<p class='empty-state'>No messages yet. Say hello.</p>";
+    return;
+  }
+
+  let html = "";
+  messages.forEach(function (m) {
+    const mine = user && m.senderEmail === user.email;
+    html += "<div class='chat-bubble " + (mine ? "mine" : "theirs") + "'>";
+    if (!mine) html += "<div style='font-weight:bold; font-size:11.5px; margin-bottom:2px;'>" + escapeHtml(m.sender) + "</div>";
+    html += escapeHtml(m.text);
+    html += "<div class='chat-meta'>" + timeAgoText(m.timestamp) + "</div>";
+    html += "</div>";
+  });
+  box.innerHTML = html;
+  box.scrollTop = box.scrollHeight;
+}
+
+/* =========================================================
+   PART 11: SHARED MODAL CONTROLS
+   ========================================================= */
+function closeDetailModal() {
+  document.getElementById("detailModal").classList.remove("active");
+  if (chatPollInterval) { clearInterval(chatPollInterval); chatPollInterval = null; }
+  currentChatRequestId = null;
+  currentReviewPlaceId = null;
+}
+
+/* =========================================================
+   PART 12: UTILITIES
+   ========================================================= */
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+function escapeJsString(value) {
+  return String(value).replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+}
+</script>
+</body>
+</html>
